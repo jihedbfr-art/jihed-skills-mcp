@@ -1,0 +1,1 @@
+"""JihedAiLabs Skills MCP Server"""
