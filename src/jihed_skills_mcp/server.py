@@ -1,88 +1,121 @@
-import os
-import httpx
-import yaml
-import asyncio
-from mcp.server.fastmcp import FastMCP
-from typing import List, Dict, Optional
+"""MCP server exposing the ai-skills library to autonomous agents.
 
-# Initialize FastMCP Server
-mcp = FastMCP("JihedAiLabs-Skills-MCP")
+Skills are read from GitHub at call time rather than vendored here, so an agent always gets
+the current version of a skill instead of whatever was bundled when this server was released.
+"""
+
+import sys
+from typing import Dict, List, Optional
+
+import httpx
+from mcp.server.mcpserver import MCPServer
+
+mcp = MCPServer("JihedAiLabs-Skills-MCP")
 
 GITHUB_API_BASE = "https://api.github.com/repos/jihedbfr-art/ai-skills/contents/skills"
 RAW_BASE_URL = "https://raw.githubusercontent.com/jihedbfr-art/ai-skills/main/skills"
+TIMEOUT = httpx.Timeout(10.0)
 
-async def fetch_github_contents(path: str = "") -> List[Dict]:
-    """Fetches directory contents from the GitHub API."""
+
+async def fetch_directory(path: str = "") -> List[Dict]:
+    """Lists one directory of the skills tree. Returns an empty list on any failure."""
     url = f"{GITHUB_API_BASE}/{path}".strip("/")
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            url, 
-            headers={"Accept": "application/vnd.github.v3+json", "User-Agent": "Jihed-Skills-MCP"}
-        )
-        if response.status_code == 200:
-            return response.json()
-        return []
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        try:
+            response = await client.get(
+                url,
+                headers={
+                    "Accept": "application/vnd.github.v3+json",
+                    "User-Agent": "jihed-skills-mcp",
+                },
+            )
+        except httpx.HTTPError:
+            return []
+        if response.status_code != 200:
+            return []
+        payload = response.json()
+        # A file path returns an object rather than a list; callers only ever want directories.
+        return payload if isinstance(payload, list) else []
 
-async def fetch_raw_skill(path: str) -> Optional[str]:
-    """Fetches the raw SKILL.md file from GitHub."""
-    url = f"{RAW_BASE_URL}/{path}"
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url)
-        if response.status_code == 200:
-            return response.text
-        return None
+
+async def fetch_raw(path: str) -> Optional[str]:
+    """Downloads one file verbatim from the repository."""
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        try:
+            response = await client.get(f"{RAW_BASE_URL}/{path}")
+        except httpx.HTTPError:
+            return None
+        return response.text if response.status_code == 200 else None
+
 
 @mcp.tool()
 async def list_skill_domains() -> str:
     """
-    Lists all available engineering and AI skill domains (platforms/models) from JihedAiLabs.
-    Use this to discover what domains are available before searching for specific skills.
+    Lists the top-level skill domains available in the ai-skills library.
+
+    Call this first to discover what exists before looking for a specific skill.
     """
-    contents = await fetch_github_contents("")
-    domains = [item['name'] for item in contents if item['type'] == 'dir']
-    
+    contents = await fetch_directory("")
+    domains = [item["name"] for item in contents if item["type"] == "dir"]
+
     if not domains:
-        return "No domains found or API rate limit exceeded."
-    
-    return "Available Skill Domains:\n- " + "\n- ".join(domains)
+        return (
+            "No domains returned. The GitHub API is unauthenticated here and allows 60 requests "
+            "per hour per IP, so this is most often a rate limit rather than an empty library."
+        )
+
+    return "Available skill domains:\n- " + "\n- ".join(domains)
+
 
 @mcp.tool()
 async def search_skills(domain: str) -> str:
     """
-    Lists all specific skills available within a given domain.
+    Lists what a domain contains.
+
     Args:
-        domain: The name of the domain (e.g., '16-ai-platforms' or '06-spring-ai').
+        domain: A domain name from list_skill_domains, for example '05-mcp-protocol-and-tools'.
+
+    Entries are usually skills, but a domain may group them one level deeper. When an entry turns
+    out to hold no SKILL.md, call this tool again with '<domain>/<entry>'.
     """
-    contents = await fetch_github_contents(domain)
-    skills = [item['name'] for item in contents if item['type'] == 'dir']
-    
-    if not skills:
-        return f"No skills found in domain '{domain}'."
-        
-    return f"Skills in {domain}:\n- " + "\n- ".join(skills)
+    contents = await fetch_directory(domain)
+    entries = [item["name"] for item in contents if item["type"] == "dir"]
+
+    if not entries:
+        return f"No entries found under '{domain}'."
+
+    return f"Under {domain}:\n- " + "\n- ".join(entries)
+
 
 @mcp.tool()
-async def read_skill(domain: str, skill_name: str) -> str:
+async def read_skill(path: str) -> str:
     """
-    Reads the full Agent-Ready SKILL.md for a specific skill. 
-    This injects production-grade engineering rules, heuristics, and execution context directly into your cognitive loop.
-    
+    Reads a full SKILL.md and returns it verbatim, so its rules enter the current context.
+
     Args:
-        domain: The domain folder (e.g., '16-ai-platforms').
-        skill_name: The specific skill folder (e.g., 'openai-spring-sdk').
+        path: The skill path relative to the skills directory, without the file name, for
+            example '05-mcp-protocol-and-tools/mcp-server-stdio-tool-schema'. Any depth works.
     """
-    path = f"{domain}/{skill_name}/SKILL.md"
-    content = await fetch_raw_skill(path)
-    
-    if not content:
-        return f"Could not find or read SKILL.md for {domain}/{skill_name}."
-        
+    clean = path.strip("/")
+    if not clean:
+        return "A skill path is required, for example '06-spring-ai-integration/<skill-name>'."
+
+    content = await fetch_raw(f"{clean}/SKILL.md")
+    if content is None:
+        return (
+            f"No SKILL.md at '{clean}'. Use search_skills to confirm the path — some domains "
+            "nest their skills one level deeper than others."
+        )
     return content
 
-def main():
-    """Starts the MCP server on stdio."""
-    print("Starting JihedAiLabs Skills MCP Server...", flush=True)
-    mcp.run(transport='stdio')
+
+def main() -> None:
+    """Runs the server over stdio."""
+    # stdout carries the JSON-RPC stream on this transport; anything else printed there
+    # corrupts the protocol, so status messages go to stderr.
+    print("jihed-skills-mcp: serving ai-skills over stdio", file=sys.stderr, flush=True)
+    mcp.run(transport="stdio")
+
 
 if __name__ == "__main__":
     main()

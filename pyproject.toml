@@ -5,17 +5,22 @@ build-backend = "hatchling.build"
 [project]
 name = "jihed-skills-mcp"
 version = "0.1.0"
-description = "MCP Server for dynamic retrieval of JihedAiLabs Agent-Ready Engineering Skills."
+description = "MCP server that serves the ai-skills engineering skill library to autonomous agents."
 readme = "README.md"
 requires-python = ">=3.10"
+license = "MIT"
 authors = [
-    { name = "Jihed Ben Arfa", email = "contact@jihedailabs.dev" }
+    { name = "Jihed Ben Arfa", email = "302788711+jihedbfr-art@users.noreply.github.com" }
 ]
 dependencies = [
-    "mcp>=1.0.0",
-    "httpx>=0.27.0",
-    "pyyaml>=6.0.1"
+    # MCP 2.x renamed FastMCP to MCPServer; this server targets the 2.x API.
+    "mcp>=2.0.0",
+    "httpx>=0.27.0"
 ]
+
+[project.urls]
+Homepage = "https://github.com/jihedbfr-art/jihed-skills-mcp"
+"Skill library" = "https://github.com/jihedbfr-art/ai-skills"
 
 [project.scripts]
 jihed-skills-mcp = "jihed_skills_mcp.server:main"
