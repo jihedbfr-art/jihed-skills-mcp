@@ -4,6 +4,10 @@
   <b>An MCP server that lets an agent read the <a href="https://github.com/jihedbfr-art/ai-skills">ai-skills</a> library at call time, instead of relying on what it was trained on.</b>
 </p>
 
+<p align="center">
+  <a href="README.fr.md">🇫🇷 Lire en Français</a>
+</p>
+
 ---
 
 ## What it does
