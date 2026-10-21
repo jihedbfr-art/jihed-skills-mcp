@@ -70,3 +70,24 @@ read_skill("05-mcp-protocol-and-tools/mcp-server-stdio-tool-schema")
 ## Licence
 
 MIT — voir [LICENSE](LICENSE).
+
+## Validation
+
+Six tests hors réseau couvrent les réponses annuaire/fichier, les refus HTTP, les erreurs réseau, le texte brut et les réponses JSON invalides ou non décodables. Une réponse annuaire malformée renvoie une liste vide, comme les autres échecs de récupération. Les appels HTTP sont simulés ; ces tests ne valident ni un échange MCP stdio ni une connexion GitHub réelle.
+
+La CI construit puis installe le wheel et lance ces tests sur Ubuntu/Windows avec Python 3.10 et 3.12.
+
+```bash
+python -m pip install build twine
+python -m build
+python -m twine check --strict dist/*
+python -m unittest discover -s tests
+```
+
+---
+
+<div align="center">
+  <img src="https://raw.githubusercontent.com/jihedbfr-art/jihedbfr-art/main/assets/brand/jihedailabs-logo.svg" alt="JihedAiLabs" width="120"/>
+  <br/>
+  <sub>Un projet <a href="https://github.com/jihedbfr-art"><b>JihedAiLabs</b></a></sub>
+</div>
