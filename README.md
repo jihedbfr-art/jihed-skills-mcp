@@ -70,3 +70,24 @@ read_skill("05-mcp-protocol-and-tools/mcp-server-stdio-tool-schema")
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+## Validation
+
+Six offline tests cover directory/file responses, HTTP rejection, network errors, raw text and invalid or undecodable JSON responses. A malformed directory response returns an empty list, like other fetch failures. HTTP calls are mocked; these tests validate neither a stdio MCP exchange nor a live GitHub connection.
+
+CI builds and installs the wheel, then runs these tests on Ubuntu/Windows with Python 3.10 and 3.12.
+
+```bash
+python -m pip install build twine
+python -m build
+python -m twine check --strict dist/*
+python -m unittest discover -s tests
+```
+
+---
+
+<div align="center">
+  <img src="https://raw.githubusercontent.com/jihedbfr-art/jihedbfr-art/main/assets/brand/jihedailabs-logo.svg" alt="JihedAiLabs" width="120"/>
+  <br/>
+  <sub>A <a href="https://github.com/jihedbfr-art"><b>JihedAiLabs</b></a> project</sub>
+</div>

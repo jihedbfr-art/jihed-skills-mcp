@@ -4,6 +4,7 @@ Skills are read from GitHub at call time rather than vendored here, so an agent 
 the current version of a skill instead of whatever was bundled when this server was released.
 """
 
+from json import JSONDecodeError
 import sys
 from typing import Dict, List, Optional
 
@@ -33,7 +34,10 @@ async def fetch_directory(path: str = "") -> List[Dict]:
             return []
         if response.status_code != 200:
             return []
-        payload = response.json()
+        try:
+            payload = response.json()
+        except (JSONDecodeError, UnicodeDecodeError):
+            return []
         # A file path returns an object rather than a list; callers only ever want directories.
         return payload if isinstance(payload, list) else []
 
